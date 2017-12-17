@@ -12,7 +12,7 @@
 namespace circles {
     void createAccount(uint64_t account)
     {
-        
+
     }
     void claimTokens(uint64_t account)
     {
@@ -20,7 +20,7 @@ namespace circles {
         last_claim query;
         query.account = account;
         last_claims::get(query);
-        if(query.last_claim == 0){      
+        if(query.last_claim == 0){
             eosio::print("Created account at: ", now());
         }else{
             uint64_t diff = now() - query.last_claim;
@@ -30,23 +30,37 @@ namespace circles {
 
         last_claim lc { account, now() };
         last_claims::store(lc);
-          
+
     }
     void addTokens(uint64_t account, uint64_t token, uint64_t amount){
-        token_ownership query;
-        query.owner = account;
-        query.token = token;
-        token_owners::get(query);
+      token query;
+      //important info: when you want to access/modify witin the users scope it has to be specified in the message --scope account
+      //so if we want to check if a user has a token or modify any info regarding the token
+      //we have to first query it witnin the users scope
+        query.token_name = token; // i specified it as account_name in the struct but that this is only to explain scopes so it doesnt really matter
+        bool get_token = TokenTable::get(query, account); // now here is the important part
+        //we query the token table with the primary_key token_name within the scope of the account
+        //if we would just use the first parameter TokenTable::get(query); it would query the default scope @ default_scope_set_when_you_defined_the_table.tokens.token_name
+        //but with the account scpecified as scope we query @ account_name.tokens.token_name
         query.balance = query.balance + amount;
-        token_owners::store(query);
+        if(get_token == true) {
+          //token is there so we can modify and update it
+          //important part is that we again specify the account as scope
+          TokenTable::update(query, account);
+        } else {
+          //token isnt there so we can add it
+          //important part is that we again specify the account as scope
+          TokenTable::store(query, account);
+        }
+        assert(add_token, "Error adding or modifying token");
     }
     void trust(trust_relation relation)
-    {       
+    {
           require_auth(relation.trustor);
           eosio::print("TODO: Let ", eosio::name(relation.trustor),  " trust account ", eosio::name(relation.trustee), " \n");
     }
     void untrust(trust_relation relation)
-    {       
+    {
           require_auth(relation.trustor);
     }
     void apply_exchange(exchange exchange_msg)
@@ -66,7 +80,7 @@ extern "C" {
     }
 
 /// The apply method implements the dispatch of events to this contract
-    void apply( uint64_t code, uint64_t action ) 
+    void apply( uint64_t code, uint64_t action )
     {
          if(action == N(newaccount))
 	 {
